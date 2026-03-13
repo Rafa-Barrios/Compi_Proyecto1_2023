@@ -59,7 +59,7 @@ class Interpreter extends GolampiBaseVisitor
     VARIABLE DECLARATION
     ========================
     */
-    public function visitVarDecl($ctx)
+   public function visitVarDecl($ctx)
     {
         $ids = $ctx->idList()->ID();
         $values = [];
@@ -77,20 +77,30 @@ class Interpreter extends GolampiBaseVisitor
             $name = $id->getText();
             $value = null;
 
+            // =========================
+            // SI ES ARREGLO
+            // =========================
             if ($ctx->type()->arrayType() !== null) {
 
-                $size = $this->visit($ctx->type()->arrayType()->expression());
+                // obtener todas las dimensiones
+                $sizes = $this->getArraySizes($ctx->type()->arrayType());
 
                 if (isset($values[$i]) && is_array($values[$i])) {
 
+                    // arreglo inicializado manualmente
                     $value = $values[$i];
 
                 } else {
 
-                    $value = array_fill(0, $size, 0);
+                    // crear arreglo multidimensional vacío
+                    $value = $this->createMultiArray($sizes);
                 }
 
             } else {
+
+                // =========================
+                // VARIABLE NORMAL
+                // =========================
 
                 if (isset($values[$i])) {
                     $value = $values[$i];
@@ -168,63 +178,84 @@ class Interpreter extends GolampiBaseVisitor
         $leftText = $ctx->expression(0)->getText();
 
         // -------------------------
-        // ASIGNACION A ARRAY
+        // ASIGNACION A ARRAY (1D o MULTIDIMENSIONAL)
         // -------------------------
-        if (preg_match('/^([a-zA-Z_][a-zA-Z0-9_]*)\[(.+)\]$/', $leftText, $matches)) {
+        if (preg_match('/^([a-zA-Z_][a-zA-Z0-9_]*)/', $leftText, $nameMatch)) {
 
-            $name = $matches[1];
+            $name = $nameMatch[1];
 
-            $index = intval($matches[2]);
+            // obtener todos los indices
+            preg_match_all('/\[(\d+)\]/', $leftText, $indexMatches);
 
-            $array = $this->environment->get($name);
+            if (!empty($indexMatches[1])) {
 
-            if (!is_array($array)) {
-                throw new \Exception("La variable '$name' no es un arreglo.");
+                $indices = array_map('intval', $indexMatches[1]);
+
+                $array = $this->environment->get($name);
+
+                if (!is_array($array)) {
+                    throw new \Exception("La variable '$name' no es un arreglo.");
+                }
+
+                // navegar el arreglo usando referencias
+                $temp = &$array;
+
+                foreach ($indices as $i => $index) {
+
+                    if (!is_array($temp)) {
+                        throw new \Exception("Acceso inválido a dimensión del arreglo.");
+                    }
+
+                    if (!array_key_exists($index, $temp)) {
+                        throw new \Exception("Índice fuera de rango.");
+                    }
+
+                    // si es el último índice
+                    if ($i === count($indices) - 1) {
+
+                        $right = $this->visit($ctx->expression(1));
+                        $operator = $ctx->assignOp()->getText();
+
+                        $left = $temp[$index];
+
+                        $result = null;
+
+                        switch ($operator) {
+
+                            case '=':
+                                $result = $right;
+                                break;
+
+                            case '+=':
+                                $result = $this->add($left, $right);
+                                break;
+
+                            case '-=':
+                                $result = $this->sub($left, $right);
+                                break;
+
+                            case '*=':
+                                $result = $this->mul($left, $right);
+                                break;
+
+                            case '/=':
+                                $result = $this->div($left, $right);
+                                break;
+                        }
+
+                        $temp[$index] = $result;
+
+                    } else {
+
+                        $temp = &$temp[$index];
+
+                    }
+                }
+
+                $this->environment->assign($name, $array);
+
+                return $result;
             }
-
-            if (!is_int($index)) {
-                throw new \Exception("El índice debe ser entero.");
-            }
-
-            if (!array_key_exists($index, $array)) {
-                throw new \Exception("Índice fuera de rango.");
-            }
-
-            $right = $this->visit($ctx->expression(1));
-            $operator = $ctx->assignOp()->getText();
-
-            $left = $array[$index];
-
-            $result = null;
-
-            switch ($operator) {
-
-                case '=':
-                    $result = $right;
-                    break;
-
-                case '+=':
-                    $result = $this->add($left, $right);
-                    break;
-
-                case '-=':
-                    $result = $this->sub($left, $right);
-                    break;
-
-                case '*=':
-                    $result = $this->mul($left, $right);
-                    break;
-
-                case '/=':
-                    $result = $this->div($left, $right);
-                    break;
-            }
-
-            $array[$index] = $result;
-
-            $this->environment->assign($name, $array);
-
-            return $result;
         }
 
         // -------------------------
@@ -1016,6 +1047,60 @@ class Interpreter extends GolampiBaseVisitor
     private function isRune($value)
     {
         return is_string($value) && strlen($value) === 1;
+    }
+
+    private function getArraySizes($arrayType)
+    {
+        $sizes = [];
+
+        while ($arrayType !== null) {
+
+            // tamaño de esta dimensión
+            $size = $this->visit($arrayType->expression());
+
+            if (!is_int($size)) {
+                throw new \Exception("El tamaño del arreglo debe ser entero.");
+            }
+
+            $sizes[] = $size;
+
+            // revisar el tipo interno
+            $typeCtx = $arrayType->type();
+
+            if ($typeCtx !== null) {
+
+                // buscar si el type contiene otro arrayType
+                $nextArray = $typeCtx->arrayType();
+
+                if ($nextArray !== null) {
+                    $arrayType = $nextArray;
+                } else {
+                    $arrayType = null;
+                }
+
+            } else {
+                $arrayType = null;
+            }
+        }
+
+        return $sizes;
+    }
+    
+    private function createMultiArray($sizes)
+    {
+        $size = array_shift($sizes);
+
+        if (empty($sizes)) {
+            return array_fill(0, $size, 0);
+        }
+
+        $array = [];
+
+        for ($i = 0; $i < $size; $i++) {
+            $array[] = $this->createMultiArray($sizes);
+        }
+
+        return $array;
     }
 
     private function add($a, $b)
