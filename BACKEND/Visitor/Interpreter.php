@@ -685,30 +685,36 @@ class Interpreter extends GolampiBaseVisitor
     */
     public function visitArrayLiteral($ctx)
     {
-        // tamaño del arreglo
         $size = $this->visit($ctx->expression());
 
         $values = [];
 
-        // si hay valores dentro de { }
-        if ($ctx->exprList() !== null) {
+        if ($ctx->arrayElements() !== null) {
 
-            $values = $this->visit($ctx->exprList());
+            foreach ($ctx->arrayElements()->arrayElement() as $element) {
 
+                // caso {1,2}
+                if ($element->exprList() !== null) {
+
+                    $values[] = $this->visit($element->exprList());
+
+                }
+                // caso expresión normal
+                else {
+
+                    $values[] = $this->visit($element->expression());
+
+                }
+            }
         }
 
-        // si no hay valores, llenar con 0
+        // sin inicialización → valores por defecto
         if (empty($values)) {
-
             return array_fill(0, $size, 0);
-
         }
 
-        // validar tamaño
         if (count($values) != $size) {
-
             throw new \Exception("El tamaño del arreglo no coincide con la inicialización.");
-
         }
 
         return $values;

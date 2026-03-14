@@ -226,7 +226,16 @@ primary
 ////////////////////
 
 arrayLiteral
-    : '[' expression ']' type '{' exprList? '}'
+    : '[' expression ']' type '{' arrayElements? '}'
+    ;
+
+arrayElements
+    : arrayElement (',' arrayElement)* ','?
+    ;
+
+arrayElement
+    : expression
+    | '{' exprList? '}'
     ;
 
 ////////////////////

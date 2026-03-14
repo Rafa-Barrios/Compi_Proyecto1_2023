@@ -442,6 +442,26 @@ interface GolampiListener extends ParseTreeListener {
 	 */
 	public function exitArrayLiteral(Context\ArrayLiteralContext $context): void;
 	/**
+	 * Enter a parse tree produced by {@see GolampiParser::arrayElements()}.
+	 * @param $context The parse tree.
+	 */
+	public function enterArrayElements(Context\ArrayElementsContext $context): void;
+	/**
+	 * Exit a parse tree produced by {@see GolampiParser::arrayElements()}.
+	 * @param $context The parse tree.
+	 */
+	public function exitArrayElements(Context\ArrayElementsContext $context): void;
+	/**
+	 * Enter a parse tree produced by {@see GolampiParser::arrayElement()}.
+	 * @param $context The parse tree.
+	 */
+	public function enterArrayElement(Context\ArrayElementContext $context): void;
+	/**
+	 * Exit a parse tree produced by {@see GolampiParser::arrayElement()}.
+	 * @param $context The parse tree.
+	 */
+	public function exitArrayElement(Context\ArrayElementContext $context): void;
+	/**
 	 * Enter a parse tree produced by {@see GolampiParser::builtinCall()}.
 	 * @param $context The parse tree.
 	 */
