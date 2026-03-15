@@ -6,6 +6,8 @@ use GolampiBaseVisitor;
 
 require_once "Environment.php";
 require_once "FlowTypes.php";
+require_once "Invocable.php";
+require_once "UserFunction.php";
 
 class Interpreter extends GolampiBaseVisitor
 {
@@ -29,6 +31,18 @@ class Interpreter extends GolampiBaseVisitor
             $this->visit($decl);
         }
 
+        // ejecutar main si existe
+        try {
+
+            $main = $this->environment->get("main");
+
+            if ($main instanceof Invocable) {
+                $main->invoke($this, []);
+            }
+
+        } catch (\Exception $e) {
+        }
+
         return $this->output;
     }
 
@@ -39,6 +53,10 @@ class Interpreter extends GolampiBaseVisitor
     */
     public function visitDeclaration($ctx)
     {
+        if ($ctx->functionDecl()) {
+            return $this->visit($ctx->functionDecl());
+        }
+
         if ($ctx->varDecl()) {
             return $this->visit($ctx->varDecl());
         }
@@ -166,6 +184,22 @@ class Interpreter extends GolampiBaseVisitor
         $this->environment->defineConst($name, $value);
 
         return $value;
+    }
+
+    /*
+    ========================
+    FUNCTION DECLARATION
+    ========================
+    */
+    public function visitFunctionDecl($ctx)
+    {
+        $name = $ctx->ID()->getText();
+
+        $function = new UserFunction($ctx, $this->environment);
+
+        $this->environment->define($name, $function);
+
+        return null;
     }
 
     /*
@@ -314,8 +348,24 @@ class Interpreter extends GolampiBaseVisitor
 
         $this->environment = $previous->createChild();
 
-        foreach ($ctx->statement() as $stmt) {
-            $this->visit($stmt);
+        try {
+
+            foreach ($ctx->statement() as $stmt) {
+                $this->visit($stmt);
+            }
+
+        }
+        catch (BreakSignal $e) {
+            $this->environment = $previous;
+            throw $e;
+        }
+        catch (ContinueSignal $e) {
+            $this->environment = $previous;
+            throw $e;
+        }
+        catch (ReturnSignal $e) {
+            $this->environment = $previous;
+            throw $e;
         }
 
         $this->environment = $previous;
@@ -538,7 +588,10 @@ class Interpreter extends GolampiBaseVisitor
         $value = null;
 
         if ($ctx->exprList()) {
-            $value = $this->visit($ctx->exprList());
+
+            $values = $this->visit($ctx->exprList());
+
+            $value = $values[0] ?? null;
         }
 
         throw new ReturnSignal($value);
@@ -559,7 +612,7 @@ class Interpreter extends GolampiBaseVisitor
             return $this->visit($ctx->builtinCall());
         }
 
-        // ⭐ FALTA ESTE
+        //  FALTA ESTE
         if ($ctx->arrayLiteral() !== null) {
             return $this->visit($ctx->arrayLiteral());
         }
@@ -591,50 +644,92 @@ class Interpreter extends GolampiBaseVisitor
             $varName = $ctx->primary()->ID()->getText();
         }
 
-        // manejar índices
-        foreach ($ctx->index() as $indexCtx) {
+        /*
+        ========================
+        FUNCTION CALLS
+        ========================
+        */
 
-            $index = $this->visit($indexCtx->expression());
+        $calls = $ctx->call();
 
-            if (!is_int($index)) {
-                throw new \Exception("El índice del arreglo debe ser entero.");
+        if ($calls !== null) {
+
+            foreach ($calls as $call) {
+
+                if (!($value instanceof Invocable)) {
+                    throw new \Exception("Intento de llamar algo que no es función.");
+                }
+
+                $args = [];
+
+                if ($call->exprList() !== null) {
+
+                    foreach ($call->exprList()->expression() as $expr) {
+                        $args[] = $this->visit($expr);
+                    }
+
+                }
+
+                if (count($args) != $value->arity()) {
+                    throw new \Exception("Número incorrecto de argumentos.");
+                }
+
+                $value = $value->invoke($this, $args);
             }
-
-            if (!is_array($value)) {
-                throw new \Exception("Intento de indexar una variable que no es arreglo.");
-            }
-
-            if (!array_key_exists($index, $value)) {
-                throw new \Exception("Índice fuera de rango.");
-            }
-
-            $value = $value[$index];
         }
 
-        // manejar ++ --
-        foreach ($ctx->children as $child) {
+        /*
+        ========================
+        ARRAY INDEX
+        ========================
+        */
 
-            $text = $child->getText();
+        $indexes = $ctx->index();
 
-            if ($text === "++") {
+        if ($indexes !== null) {
 
-                if (is_numeric($value)) {
-                    $value++;
+            foreach ($indexes as $idx) {
 
-                    if ($varName !== null) {
-                        $this->environment->assign($varName, $value);
-                    }
+                $index = $this->visit($idx->expression());
+
+                if (!is_int($index)) {
+                    throw new \Exception("El índice debe ser entero.");
                 }
+
+                if (!is_array($value)) {
+                    throw new \Exception("Intento de indexar algo que no es arreglo.");
+                }
+
+                if (!array_key_exists($index, $value)) {
+                    throw new \Exception("Índice fuera de rango.");
+                }
+
+                $value = $value[$index];
             }
+        }
 
-            if ($text === "--") {
+        /*
+        ========================
+        ++ --
+        ========================
+        */
 
-                if (is_numeric($value)) {
+        if ($ctx->incrementOp() !== null) {
+
+            foreach ($ctx->incrementOp() as $op) {
+
+                $text = $op->getText();
+
+                if ($text === "++") {
+                    $value++;
+                }
+
+                if ($text === "--") {
                     $value--;
+                }
 
-                    if ($varName !== null) {
-                        $this->environment->assign($varName, $value);
-                    }
+                if ($varName !== null) {
+                    $this->environment->assign($varName, $value);
                 }
             }
         }
@@ -987,6 +1082,9 @@ class Interpreter extends GolampiBaseVisitor
     {
         $text = $ctx->getText();
 
+        // ========================
+        // fmt.Println
+        // ========================
         if (str_starts_with($text, "fmt.Println")) {
 
             $values = [];
@@ -998,12 +1096,27 @@ class Interpreter extends GolampiBaseVisitor
             }
 
             foreach ($values as &$v) {
+
                 if ($v === null) {
                     $v = "nil";
                 }
-
-                if (is_bool($v)) {
+                elseif (is_bool($v)) {
                     $v = $v ? "true" : "false";
+                }
+                elseif (is_array($v)) {
+                    $v = json_encode($v);
+                }
+                elseif (is_object($v)) {
+
+                    if ($v instanceof \Visitor\UserFunction) {
+                        $v = "<function>";
+                    } else {
+                        $v = "<object>";
+                    }
+
+                }
+                else {
+                    $v = (string)$v;
                 }
             }
 
@@ -1012,6 +1125,9 @@ class Interpreter extends GolampiBaseVisitor
             return null;
         }
 
+        // ========================
+        // len()
+        // ========================
         if (str_starts_with($text, "len")) {
 
             $value = $this->visit($ctx->expression());
@@ -1027,6 +1143,9 @@ class Interpreter extends GolampiBaseVisitor
             throw new \Exception("len() solo funciona con strings o arreglos.");
         }
 
+        // ========================
+        // now()
+        // ========================
         if (str_starts_with($text, "now")) {
             return date("Y-m-d H:i:s");
         }
@@ -1049,6 +1168,24 @@ class Interpreter extends GolampiBaseVisitor
     HELPERS
     ========================
     */
+
+    public function executeBlock($statements, $environment)
+    {
+        $previous = $this->environment;
+
+        try {
+
+            $this->environment = $environment;
+
+            foreach ($statements as $stmt) {
+                $this->visit($stmt);
+            }
+
+        } finally {
+
+            $this->environment = $previous;
+        }
+    }
 
     private function isRune($value)
     {
