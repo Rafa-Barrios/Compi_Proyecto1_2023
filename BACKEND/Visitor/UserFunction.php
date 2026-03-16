@@ -51,7 +51,10 @@ class UserFunction implements Invocable {
 
                 $name = $paramList[$i]->ID()->getText();
 
-                $env->define($name, $args[$i] ?? null);
+                $value = $args[$i];
+
+                // los punteros se pasan tal cual
+                $env->define($name, $value);
             }
         }
 
@@ -62,13 +65,18 @@ class UserFunction implements Invocable {
                 $env
             );
 
-        }
+        } 
         catch (ReturnSignal $r) {
 
-            return $r->value;
+            // si hay múltiples valores
+            if (is_array($r->value)) {
+                return $r->value;
+            }
 
+            return $r->value;
         }
 
+        // función sin return
         return null;
     }
 }

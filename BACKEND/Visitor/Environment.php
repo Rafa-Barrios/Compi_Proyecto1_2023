@@ -69,21 +69,36 @@ class Environment {
     */
     public function assign($name, $value) {
 
-        // si es constante en este scope → error
         if (array_key_exists($name, $this->constants)) {
             throw new \Exception("No se puede modificar la constante '$name'.");
         }
 
-        // si es variable en este scope → asignar
         if (array_key_exists($name, $this->values)) {
             $this->values[$name] = $value;
             return;
         }
 
-        // revisar scopes padres
         if ($this->parent !== null) {
             $this->parent->assign($name, $value);
             return;
+        }
+
+        throw new \Exception("Variable '$name' no definida.");
+    }
+
+    /*
+    ========================
+    OBTENER ENVIRONMENT REAL
+    ========================
+    */
+    public function getEnvironmentOf($name) {
+
+        if (array_key_exists($name, $this->values) || array_key_exists($name, $this->constants)) {
+            return $this;
+        }
+
+        if ($this->parent !== null) {
+            return $this->parent->getEnvironmentOf($name);
         }
 
         throw new \Exception("Variable '$name' no definida.");

@@ -8,6 +8,7 @@ require_once "Environment.php";
 require_once "FlowTypes.php";
 require_once "Invocable.php";
 require_once "UserFunction.php";
+require_once "Pointer.php";
 
 class Interpreter extends GolampiBaseVisitor
 {
@@ -212,16 +213,68 @@ class Interpreter extends GolampiBaseVisitor
     */
     public function visitAssignment($ctx)
     {
-        $leftText = $ctx->expression(0)->getText();
+        $leftExpr = $ctx->expression(0);
+        $leftText = $leftExpr->getText();
 
-        // -------------------------
-        // ASIGNACION A ARRAY (1D o MULTIDIMENSIONAL)
-        // -------------------------
+        $operator = $ctx->assignOp()->getText();
+        $right = $this->visit($ctx->expression(1));
+
+        /*
+        =========================
+        ASIGNACION A PUNTERO
+        =========================
+        */
+
+        if ($leftExpr->getChildCount() == 2 && $leftExpr->getChild(0)->getText() == '*') {
+
+            // obtener el objeto Pointer
+            $pointer = $this->visit($leftExpr->getChild(1));
+
+            if (!($pointer instanceof \Visitor\Pointer)) {
+                throw new \Exception("Asignación a puntero inválido.");
+            }
+
+            $left = $pointer->get();
+            $result = null;
+
+            switch ($operator) {
+
+                case '=':
+                    $result = $right;
+                    break;
+
+                case '+=':
+                    $result = $this->add($left, $right);
+                    break;
+
+                case '-=':
+                    $result = $this->sub($left, $right);
+                    break;
+
+                case '*=':
+                    $result = $this->mul($left, $right);
+                    break;
+
+                case '/=':
+                    $result = $this->div($left, $right);
+                    break;
+            }
+
+            $pointer->set($result);
+
+            return $result;
+        }
+
+        /*
+        =========================
+        ASIGNACION A ARRAY
+        =========================
+        */
+
         if (preg_match('/^([a-zA-Z_][a-zA-Z0-9_]*)/', $leftText, $nameMatch)) {
 
             $name = $nameMatch[1];
 
-            // obtener todos los indices
             preg_match_all('/\[(\d+)\]/', $leftText, $indexMatches);
 
             if (!empty($indexMatches[1])) {
@@ -234,7 +287,6 @@ class Interpreter extends GolampiBaseVisitor
                     throw new \Exception("La variable '$name' no es un arreglo.");
                 }
 
-                // navegar el arreglo usando referencias
                 $temp = &$array;
 
                 foreach ($indices as $i => $index) {
@@ -247,14 +299,9 @@ class Interpreter extends GolampiBaseVisitor
                         throw new \Exception("Índice fuera de rango.");
                     }
 
-                    // si es el último índice
                     if ($i === count($indices) - 1) {
 
-                        $right = $this->visit($ctx->expression(1));
-                        $operator = $ctx->assignOp()->getText();
-
                         $left = $temp[$index];
-
                         $result = null;
 
                         switch ($operator) {
@@ -285,7 +332,6 @@ class Interpreter extends GolampiBaseVisitor
                     } else {
 
                         $temp = &$temp[$index];
-
                     }
                 }
 
@@ -295,9 +341,11 @@ class Interpreter extends GolampiBaseVisitor
             }
         }
 
-        // -------------------------
-        // LOGICA ORIGINAL (VARIABLE NORMAL)
-        // -------------------------
+        /*
+        =========================
+        VARIABLE NORMAL
+        =========================
+        */
 
         if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $leftText)) {
             throw new \Exception("Asignación inválida: $leftText");
@@ -305,11 +353,7 @@ class Interpreter extends GolampiBaseVisitor
 
         $name = $leftText;
 
-        $right = $this->visit($ctx->expression(1));
-        $operator = $ctx->assignOp()->getText();
-
         $left = $this->environment->get($name);
-
         $result = null;
 
         switch ($operator) {
@@ -656,15 +700,21 @@ class Interpreter extends GolampiBaseVisitor
 
         /*
         ========================
-        FUNCTION CALLS
+        POSTFIX OPERATIONS
         ========================
         */
 
-        $calls = $ctx->call();
+        for ($i = 1; $i < $ctx->getChildCount(); $i++) {
 
-        if ($calls !== null) {
+            $child = $ctx->getChild($i);
 
-            foreach ($calls as $call) {
+            /*
+            ========================
+            FUNCTION CALL
+            ========================
+            */
+
+            if ($child instanceof \Context\CallContext) {
 
                 if (!($value instanceof Invocable)) {
                     throw new \Exception("Intento de llamar algo que no es función.");
@@ -672,9 +722,9 @@ class Interpreter extends GolampiBaseVisitor
 
                 $args = [];
 
-                if ($call->exprList() !== null) {
+                if ($child->exprList() !== null) {
 
-                    foreach ($call->exprList()->expression() as $expr) {
+                    foreach ($child->exprList()->expression() as $expr) {
                         $args[] = $this->visit($expr);
                     }
 
@@ -686,21 +736,16 @@ class Interpreter extends GolampiBaseVisitor
 
                 $value = $value->invoke($this, $args);
             }
-        }
 
-        /*
-        ========================
-        ARRAY INDEX
-        ========================
-        */
+            /*
+            ========================
+            ARRAY INDEX
+            ========================
+            */
 
-        $indexes = $ctx->index();
+            elseif ($child instanceof \Context\IndexContext) {
 
-        if ($indexes !== null) {
-
-            foreach ($indexes as $idx) {
-
-                $index = $this->visit($idx->expression());
+                $index = $this->visit($child->expression());
 
                 if (!is_int($index)) {
                     throw new \Exception("El índice debe ser entero.");
@@ -716,19 +761,16 @@ class Interpreter extends GolampiBaseVisitor
 
                 $value = $value[$index];
             }
-        }
 
-        /*
-        ========================
-        ++ --
-        ========================
-        */
+            /*
+            ========================
+            ++ --
+            ========================
+            */
 
-        if ($ctx->incrementOp() !== null) {
+            elseif ($child instanceof \Context\IncrementOpContext) {
 
-            foreach ($ctx->incrementOp() as $op) {
-
-                $text = $op->getText();
+                $text = $child->getText();
 
                 if ($text === "++") {
                     $value++;
@@ -903,17 +945,19 @@ class Interpreter extends GolampiBaseVisitor
         if ($ctx->getChildCount() == 2) {
 
             $op = $ctx->getChild(0)->getText();
-            $value = $this->visit($ctx->unary());
-
-            if ($value === null) return null;
 
             switch ($op) {
 
                 case '!':
+                    $value = $this->visit($ctx->unary());
+
                     if (!is_bool($value)) return null;
+
                     return !$value;
 
                 case '-':
+                    $value = $this->visit($ctx->unary());
+
                     if (is_int($value) || is_float($value)) {
                         return -$value;
                     }
@@ -923,6 +967,36 @@ class Interpreter extends GolampiBaseVisitor
                     }
 
                     return null;
+
+                // =========================
+                // OPERADOR &
+                // =========================
+                case '&':
+
+                    $node = $ctx->unary();
+
+                    $name = $node->getText();
+
+                    if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $name)) {
+                        throw new \Exception("El operador & solo puede aplicarse a variables.");
+                    }
+
+                    $env = $this->environment->getEnvironmentOf($name);
+
+                    return new \Visitor\Pointer($env, $name);
+
+                // =========================
+                // OPERADOR *
+                // =========================
+                case '*':
+
+                    $value = $this->visit($ctx->unary());
+
+                    if ($value instanceof \Visitor\Pointer) {
+                        return $value->get();
+                    }
+
+                    throw new \Exception("No es un puntero válido.");
             }
         }
 
