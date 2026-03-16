@@ -1214,7 +1214,8 @@ class Interpreter extends GolampiBaseVisitor
         // ========================
         if (str_starts_with($text, "len")) {
 
-            $value = $this->visit($ctx->expression());
+            $exprs = $ctx->expression();
+            $value = $this->visit($exprs[0]);
 
             if (is_array($value)) {
                 return count($value);
@@ -1269,10 +1270,11 @@ class Interpreter extends GolampiBaseVisitor
         // ========================
         if (str_starts_with($text, "typeOf")) {
 
-            $value = $this->visit($ctx->expression());
+            $exprs = $ctx->expression();
+            $value = $this->visit($exprs[0]);
 
             if (is_int($value)) {
-                return "int";
+                return "int32";
             }
 
             if (is_float($value)) {
