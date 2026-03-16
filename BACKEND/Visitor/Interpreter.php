@@ -1234,6 +1234,75 @@ class Interpreter extends GolampiBaseVisitor
             return date("Y-m-d H:i:s");
         }
 
+        // ========================
+        // substr()
+        // ========================
+        if (str_starts_with($text, "substr")) {
+
+            $exprs = $ctx->expression();
+
+            if (count($exprs) != 3) {
+                throw new \Exception("substr() requiere 3 argumentos.");
+            }
+
+            $str = $this->visit($exprs[0]);
+            $start = $this->visit($exprs[1]);
+            $length = $this->visit($exprs[2]);
+
+            if (!is_string($str)) {
+                throw new \Exception("substr() requiere un string.");
+            }
+
+            if (!is_int($start) || !is_int($length)) {
+                throw new \Exception("substr() requiere índices enteros.");
+            }
+
+            if ($start < 0 || $length < 0 || $start + $length > strlen($str)) {
+                throw new \Exception("Índices inválidos en substr().");
+            }
+
+            return substr($str, $start, $length);
+        }
+
+        // ========================
+        // typeOf()
+        // ========================
+        if (str_starts_with($text, "typeOf")) {
+
+            $value = $this->visit($ctx->expression());
+
+            if (is_int($value)) {
+                return "int";
+            }
+
+            if (is_float($value)) {
+                return "float32";
+            }
+
+            if (is_bool($value)) {
+                return "bool";
+            }
+
+            if (is_string($value)) {
+
+                if ($this->isRune($value)) {
+                    return "rune";
+                }
+
+                return "string";
+            }
+
+            if (is_array($value)) {
+                return "array";
+            }
+
+            if ($value === null) {
+                return "nil";
+            }
+
+            return "unknown";
+        }
+
         return null;
     }
 
