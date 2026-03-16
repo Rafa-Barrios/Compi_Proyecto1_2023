@@ -1217,12 +1217,14 @@ class Interpreter extends GolampiBaseVisitor
             $exprs = $ctx->expression();
             $value = $this->visit($exprs[0]);
 
-            if (is_array($value)) {
-                return count($value);
-            }
-
+            // strings
             if (is_string($value)) {
                 return strlen($value);
+            }
+
+            // arrays o matrices
+            if (is_array($value)) {
+                return count($value);
             }
 
             throw new \Exception("len() solo funciona con strings o arreglos.");
@@ -1232,6 +1234,7 @@ class Interpreter extends GolampiBaseVisitor
         // now()
         // ========================
         if (str_starts_with($text, "now")) {
+            date_default_timezone_set("America/Guatemala");
             return date("Y-m-d H:i:s");
         }
 
