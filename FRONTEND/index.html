@@ -140,7 +140,7 @@ function runCode() {
             salida += "\n\n--- ERRORES ---\n";
 
             data.errors.forEach(err => {
-                salida += `[${err.type}] Línea ${err.line}, Col ${err.column}: ${err.message}\n`;
+                salida += `[${err.type}] Línea ${err.line}, Col ${err.column}: ${err.description}\n`;
             });
         }
 

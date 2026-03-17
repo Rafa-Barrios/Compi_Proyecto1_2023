@@ -127,7 +127,11 @@ class Interpreter extends GolampiBaseVisitor
                 }
             }
 
-            $this->environment->define($name, $value);
+            $this->environment->define(
+                $name, $value,
+                $id->getSymbol()->getLine(),
+                $id->getSymbol()->getCharPositionInLine()
+            );
         }
 
         return null;
@@ -189,7 +193,11 @@ class Interpreter extends GolampiBaseVisitor
 
         $value = $this->visit($ctx->expression());
 
-        $this->environment->defineConst($name, $value);
+        $this->environment->defineConst(
+            $name, $value,
+            $ctx->getStart()->getLine(),
+            $ctx->getStart()->getCharPositionInLine()
+        );
 
         return $value;
     }
@@ -732,7 +740,11 @@ class Interpreter extends GolampiBaseVisitor
 
         if ($ctx->ID() !== null) {
             $name = $ctx->ID()->getText();
-            return $this->environment->get($name);
+            return $this->environment->get(
+                $name,
+                $ctx->ID()->getSymbol()->getLine(),
+                $ctx->ID()->getSymbol()->getCharPositionInLine()
+            );
         }
 
         if ($ctx->expression() !== null) {
@@ -999,9 +1011,16 @@ class Interpreter extends GolampiBaseVisitor
             $op = $ctx->getChild(2*$i-1)->getText();
 
             if ($op == "+") {
-                $result = $this->add($result, $right);
+                $result = $this->add($result, $right,
+                    $ctx->getStart()->getLine(),
+                    $ctx->getStart()->getCharPositionInLine()
+                );
+
             } else {
-                $result = $this->sub($result, $right);
+                $result = $this->sub($result, $right,
+                    $ctx->getStart()->getLine(),
+                    $ctx->getStart()->getCharPositionInLine()
+                );
             }
         }
 
@@ -1025,15 +1044,15 @@ class Interpreter extends GolampiBaseVisitor
             switch ($op) {
 
                 case "*":
-                    $result = $this->mul($result, $right);
+                    $result = $this->mul($result, $right, $ctx->getStart()->getLine(), $ctx->getStart()->getCharPositionInLine());
                     break;
 
                 case "/":
-                    $result = $this->div($result, $right);
+                    $result = $this->div($result, $right, $ctx->getStart()->getLine(), $ctx->getStart()->getCharPositionInLine());
                     break;
 
                 case "%":
-                    $result = $this->mod($result, $right);
+                    $result = $this->mod($result, $right, $ctx->getStart()->getLine(), $ctx->getStart()->getCharPositionInLine());
                     break;
             }
         }
@@ -1111,7 +1130,7 @@ class Interpreter extends GolampiBaseVisitor
                         return $value->get();
                     }
 
-                    t\ErrorTable::add(
+                    \ErrorTable::add(
                         "Semantico",
                         "No es un puntero valido.",
                         $ctx->getStart()->getLine(),
@@ -1167,19 +1186,23 @@ class Interpreter extends GolampiBaseVisitor
             switch ($op) {
 
                 case ">":
-                    $result = $this->greater($result, $right);
+                    $result = $this->greater($result, $right, 
+                    $ctx->getStart()->getLine(), $ctx->getStart()->getCharPositionInLine());
                     break;
 
                 case ">=":
-                    $result = $this->greaterEqual($result, $right);
+                    $result = $this->greaterEqual($result, $right,
+                    $ctx->getStart()->getLine(), $ctx->getStart()->getCharPositionInLine());
                     break;
 
                 case "<":
-                    $result = $this->less($result, $right);
+                    $result = $this->less($result, $right, 
+                    $ctx->getStart()->getLine(), $ctx->getStart()->getCharPositionInLine());
                     break;
 
                 case "<=":
-                    $result = $this->lessEqual($result, $right);
+                    $result = $this->lessEqual($result, $right, 
+                    $ctx->getStart()->getLine(), $ctx->getStart()->getCharPositionInLine());
                     break;
             }
         }
@@ -1568,7 +1591,7 @@ class Interpreter extends GolampiBaseVisitor
         return $array;
     }
 
-    private function add($a, $b)
+    private function add($a, $b, $line=0, $column=0)
     {
         if ($a === null || $b === null) return null;
 
@@ -1590,17 +1613,12 @@ class Interpreter extends GolampiBaseVisitor
             return $a + $b;
         }
         
-        \ErrorTable::add(
-            "Semantico",
-            "Tipos incompatibles en operacion +.",
-            0,
-            0
-        );
+        \ErrorTable::add("Semantico", "Tipos incompatibles en operacion +.", $line, $column);
 
         return null;
     }
 
-    private function sub($a, $b)
+    private function sub($a, $b, $line=0, $column=0)
     {
         if ($a === null || $b === null) return null;
 
@@ -1618,17 +1636,12 @@ class Interpreter extends GolampiBaseVisitor
             return $a - $b;
         }
 
-        \ErrorTable::add(
-            "Semantico",
-            "Tipos incompatibles en operacion -.",
-            0,
-            0
-        );
+        \ErrorTable::add("Semantico", "Tipos incompatibles en operacion -.", $line, $column);
 
         return null;
     }
 
-    private function mul($a, $b)
+    private function mul($a, $b, $line=0, $column=0)
     {
         if ($a === null || $b === null) return null;
 
@@ -1654,17 +1667,12 @@ class Interpreter extends GolampiBaseVisitor
             return $a * $b;
         }
 
-        \ErrorTable::add(
-            "Semantico",
-            "Tipos incompatibles en operacion *.",
-            0,
-            0
-        );
+        \ErrorTable::add("Semantico", "Tipos incompatibles en operacion *.", $line, $column);
 
         return null;
     }
 
-    private function div($a, $b)
+    private function div($a, $b, $line=0, $column=0)
     {
         if ($a === null || $b === null) return null;
 
@@ -1678,8 +1686,8 @@ class Interpreter extends GolampiBaseVisitor
             \ErrorTable::add(
                 "Semantico",
                 "Division por cero.",
-                0,
-                0
+                $line,
+                $column
             );
 
             return null;
@@ -1694,17 +1702,12 @@ class Interpreter extends GolampiBaseVisitor
             return intdiv($a, $b);
         }
 
-        \ErrorTable::add(
-            "Semantico",
-            "Tipos incompatibles en operacion /.",
-            0,
-            0
-        );
+        \ErrorTable::add("Semantico", "Tipos incompatibles en operacion /.", $line, $column);
 
         return null;
     }
 
-    private function mod($a, $b)
+    private function mod($a, $b, $line=0, $column=0)
     {
         if ($a === null || $b === null) return null;
 
@@ -1717,12 +1720,7 @@ class Interpreter extends GolampiBaseVisitor
             return $a % $b;
         }
 
-        \ErrorTable::add(
-            "Semantico",
-            "Tipos incompatibles en operacion %.",
-            0,
-            0
-        );
+        \ErrorTable::add("Semantico", "Tipos incompatibles en operacion %.", $line, $column);
 
         return null;
     }
@@ -1758,7 +1756,7 @@ class Interpreter extends GolampiBaseVisitor
         return !$result;
     }
 
-    private function greater($a, $b)
+    private function greater($a, $b, $line=0, $column=0)
     {
         if ($a === null || $b === null) return null;
 
@@ -1775,17 +1773,12 @@ class Interpreter extends GolampiBaseVisitor
             return $a > $b;
         }
 
-        \ErrorTable::add(
-            "Semantico",
-            "Tipos incompatibles en comparacion >.",
-            0,
-            0
-        );
+        \ErrorTable::add("Semantico", "Tipos incompatibles en operacion >.", $line, $column);
 
         return null;
     }
 
-    private function greaterEqual($a, $b)
+    private function greaterEqual($a, $b, $line=0, $column=0)
     {
         if ($a === null || $b === null) return null;
 
@@ -1802,17 +1795,12 @@ class Interpreter extends GolampiBaseVisitor
             return $a >= $b;
         }
 
-        \ErrorTable::add(
-            "Semantico",
-            "Tipos incompatibles en comparacion >=.",
-            0,
-            0
-        );
+        \ErrorTable::add("Semantico", "Tipos incompatibles en operacion >=.", $line, $column);
 
         return null;
     }
 
-    private function less($a, $b)
+    private function less($a, $b, $line=0, $column=0)
     {
         if ($a === null || $b === null) return null;
 
@@ -1829,17 +1817,12 @@ class Interpreter extends GolampiBaseVisitor
             return $a < $b;
         }
 
-        \ErrorTable::add(
-            "Semantico",
-            "Tipos incompatibles en comparacion <.",
-            0,
-            0
-        );
+        \ErrorTable::add("Semantico", "Tipos incompatibles en operacion <.", $line, $column);
 
         return null;
     }
 
-    private function lessEqual($a, $b)
+    private function lessEqual($a, $b, $line=0, $column=0)
     {
         if ($a === null || $b === null) return null;
 
@@ -1856,12 +1839,7 @@ class Interpreter extends GolampiBaseVisitor
             return $a <= $b;
         }
 
-        \ErrorTable::add(
-            "Semantico",
-            "Tipos incompatibles en comparacion <=.",
-            0,
-            0
-        );
+        \ErrorTable::add("Semantico", "Tipos incompatibles en operacion <=.", $line, $column);
 
         return null;
     }

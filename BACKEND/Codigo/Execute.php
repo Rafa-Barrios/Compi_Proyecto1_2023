@@ -71,6 +71,8 @@ $code = $_POST["code"] ?? "";
 $input = InputStream::fromString($code);
 
 $lexer = new GolampiLexer($input);
+$lexer->removeErrorListeners();
+$lexer->addErrorListener(new ErrorListener());
 $tokens = new CommonTokenStream($lexer);
 $parser = new GolampiParser($tokens);
 
