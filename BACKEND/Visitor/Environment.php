@@ -2,49 +2,52 @@
 
 namespace Visitor;
 
+require_once __DIR__ . "/../Tablas/ErrorTable.php";
+
 class Environment {
 
-    private $values = [];       // variables
-    private $constants = [];    // constantes
+    private $values = [];
+    private $constants = [];
     private $parent;
 
     public function __construct($parent = null) {
         $this->parent = $parent;
     }
 
-    /*
-    ========================
-    DEFINIR VARIABLE
-    ========================
-    */
     public function define($name, $value) {
 
         if (array_key_exists($name, $this->values) || array_key_exists($name, $this->constants)) {
-            throw new \Exception("El identificador '$name' ya está definido en este scope.");
+
+            \ErrorTable::add(
+                "Semantico",
+                "El identificador '$name' ya esta definido en este scope.",
+                0,
+                0
+            );
+
+            return;
         }
 
         $this->values[$name] = $value;
     }
 
-    /*
-    ========================
-    DEFINIR CONSTANTE
-    ========================
-    */
     public function defineConst($name, $value) {
 
         if (array_key_exists($name, $this->values) || array_key_exists($name, $this->constants)) {
-            throw new \Exception("El identificador '$name' ya está definido en este scope.");
+
+            \ErrorTable::add(
+                "Semantico",
+                "El identificador '$name' ya esta definido en este scope.",
+                0,
+                0
+            );
+
+            return;
         }
 
         $this->constants[$name] = $value;
     }
 
-    /*
-    ========================
-    OBTENER IDENTIFICADOR
-    ========================
-    */
     public function get($name) {
 
         if (array_key_exists($name, $this->values)) {
@@ -59,18 +62,28 @@ class Environment {
             return $this->parent->get($name);
         }
 
-        throw new \Exception("Identificador '$name' no definido.");
+        \ErrorTable::add(
+            "Semantico",
+            "Identificador '$name' no definido.",
+            0,
+            0
+        );
+
+        return null;
     }
 
-    /*
-    ========================
-    ASIGNAR VARIABLE
-    ========================
-    */
     public function assign($name, $value) {
 
         if (array_key_exists($name, $this->constants)) {
-            throw new \Exception("No se puede modificar la constante '$name'.");
+
+            \ErrorTable::add(
+                "Semantico",
+                "No se puede modificar la constante '$name'.",
+                0,
+                0
+            );
+
+            return;
         }
 
         if (array_key_exists($name, $this->values)) {
@@ -83,14 +96,14 @@ class Environment {
             return;
         }
 
-        throw new \Exception("Variable '$name' no definida.");
+        \ErrorTable::add(
+            "Semantico",
+            "Variable '$name' no definida.",
+            0,
+            0
+        );
     }
 
-    /*
-    ========================
-    OBTENER ENVIRONMENT REAL
-    ========================
-    */
     public function getEnvironmentOf($name) {
 
         if (array_key_exists($name, $this->values) || array_key_exists($name, $this->constants)) {
@@ -101,14 +114,9 @@ class Environment {
             return $this->parent->getEnvironmentOf($name);
         }
 
-        throw new \Exception("Variable '$name' no definida.");
+        return null;
     }
 
-    /*
-    ========================
-    CREAR NUEVO SCOPE
-    ========================
-    */
     public function createChild() {
         return new Environment($this);
     }

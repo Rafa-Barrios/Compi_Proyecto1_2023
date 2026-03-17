@@ -132,7 +132,19 @@ function runCode() {
     })
     .then(res => res.json())
     .then(data => {
-        document.getElementById("output").textContent = data.output;
+
+        let salida = data.output || "";
+
+        if (data.errors && data.errors.length > 0) {
+
+            salida += "\n\n--- ERRORES ---\n";
+
+            data.errors.forEach(err => {
+                salida += `[${err.type}] Línea ${err.line}, Col ${err.column}: ${err.message}\n`;
+            });
+        }
+
+        document.getElementById("output").textContent = salida;
     })
     .catch(error => {
         document.getElementById("output").textContent = "Error: " + error;

@@ -9,6 +9,7 @@ require_once "FlowTypes.php";
 require_once "Invocable.php";
 require_once "UserFunction.php";
 require_once "Pointer.php";
+require_once __DIR__ . "/../Tablas/ErrorTable.php";
 
 class Interpreter extends GolampiBaseVisitor
 {
@@ -142,7 +143,6 @@ class Interpreter extends GolampiBaseVisitor
         $ids = $ctx->idList()->ID();
         $values = $this->visit($ctx->exprList());
 
-        // 🔹 Si hay una sola expresión pero devuelve múltiples valores
         if (count($values) === 1 && is_array($values[0])) {
             $values = $values[0];
         }
@@ -154,21 +154,25 @@ class Interpreter extends GolampiBaseVisitor
             $name = $id->getText();
             $value = $values[$i] ?? null;
 
-            try {
+            $env = $this->environment->getEnvironmentOf($name);
 
-                $this->environment->get($name);
-
-                $this->environment->assign($name, $value);
-
-            } catch (\Exception $e) {
-
+            if ($env !== null) {
+                $env->assign($name, $value);
+            } else {
                 $this->environment->define($name, $value);
                 $hasNew = true;
             }
         }
 
         if (!$hasNew) {
-            throw new \Exception("Short declaration requiere al menos una variable nueva.");
+
+            \ErrorTable::add(
+                "Semantico",
+                "Short declaration requiere al menos una variable nueva.",
+                $ctx->getStart()->getLine(),
+                $ctx->getStart()->getCharPositionInLine()
+            );
+
         }
 
         return null;
@@ -231,7 +235,15 @@ class Interpreter extends GolampiBaseVisitor
             $pointer = $this->visit($leftExpr->getChild(1));
 
             if (!($pointer instanceof \Visitor\Pointer)) {
-                throw new \Exception("Asignación a puntero inválido.");
+
+                \ErrorTable::add(
+                    "Semantico",
+                    "Asignacion a puntero invalida.",
+                    $ctx->getStart()->getLine(),
+                    $ctx->getStart()->getCharPositionInLine()
+                );
+
+                return null;
             }
 
             $left = $pointer->get();
@@ -284,7 +296,15 @@ class Interpreter extends GolampiBaseVisitor
                 $array = $this->environment->get($name);
 
                 if (!is_array($array)) {
-                    throw new \Exception("La variable '$name' no es un arreglo.");
+
+                    \ErrorTable::add(
+                        "Semantico",
+                        "La variable '$name' no es un arreglo.",
+                        $ctx->getStart()->getLine(),
+                        $ctx->getStart()->getCharPositionInLine()
+                    );
+
+                    return null;
                 }
 
                 $temp = &$array;
@@ -292,11 +312,27 @@ class Interpreter extends GolampiBaseVisitor
                 foreach ($indices as $i => $index) {
 
                     if (!is_array($temp)) {
-                        throw new \Exception("Acceso inválido a dimensión del arreglo.");
+
+                        \ErrorTable::add(
+                            "Semantico",
+                            "Acceso invalido a dimension del arreglo.",
+                            $ctx->getStart()->getLine(),
+                            $ctx->getStart()->getCharPositionInLine()
+                        );
+
+                        return null;
                     }
 
                     if (!array_key_exists($index, $temp)) {
-                        throw new \Exception("Índice fuera de rango.");
+
+                        \ErrorTable::add(
+                            "Semantico",
+                            "Indice fuera de rango en arreglo.",
+                            $ctx->getStart()->getLine(),
+                            $ctx->getStart()->getCharPositionInLine()
+                        );
+
+                        return null;
                     }
 
                     if ($i === count($indices) - 1) {
@@ -348,7 +384,15 @@ class Interpreter extends GolampiBaseVisitor
         */
 
         if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $leftText)) {
-            throw new \Exception("Asignación inválida: $leftText");
+
+            \ErrorTable::add(
+                "Semantico",
+                "Asignacion invalida: $leftText",
+                $ctx->getStart()->getLine(),
+                $ctx->getStart()->getCharPositionInLine()
+            );
+
+            return null;
         }
 
         $name = $leftText;
@@ -432,7 +476,15 @@ class Interpreter extends GolampiBaseVisitor
 
         // la condición debe ser booleana
         if (!is_bool($condition)) {
-            throw new \Exception("La condición del if debe ser booleana.");
+
+            \ErrorTable::add(
+                "Semantico",
+                "La condicion del if debe ser booleana.",
+                $ctx->getStart()->getLine(),
+                $ctx->getStart()->getCharPositionInLine()
+            );
+
+            return null;
         }
 
         // IF verdadero
@@ -534,7 +586,14 @@ class Interpreter extends GolampiBaseVisitor
                     $cond = $this->visit($clause->expression(0));
 
                     if (!is_bool($cond)) {
-                        throw new \Exception("La condición del for debe ser booleana.");
+                        \ErrorTable::add(
+                            "Semantico",
+                            "La condicion del for debe ser booleana.",
+                            $ctx->getStart()->getLine(),
+                            $ctx->getStart()->getCharPositionInLine()
+                        );
+
+                        break;
                     }
 
                     if (!$cond) {
@@ -717,7 +776,15 @@ class Interpreter extends GolampiBaseVisitor
             if ($child instanceof \Context\CallContext) {
 
                 if (!($value instanceof Invocable)) {
-                    throw new \Exception("Intento de llamar algo que no es función.");
+
+                    \ErrorTable::add(
+                        "Semantico",
+                        "Intento de llamar algo que no es funcion.",
+                        $ctx->getStart()->getLine(),
+                        $ctx->getStart()->getCharPositionInLine()
+                    );
+
+                    return null;
                 }
 
                 $args = [];
@@ -731,7 +798,15 @@ class Interpreter extends GolampiBaseVisitor
                 }
 
                 if (count($args) != $value->arity()) {
-                    throw new \Exception("Número incorrecto de argumentos.");
+
+                    \ErrorTable::add(
+                        "Semantico",
+                        "Numero incorrecto de argumentos.",
+                        $ctx->getStart()->getLine(),
+                        $ctx->getStart()->getCharPositionInLine()
+                    );
+
+                    return null;
                 }
 
                 $value = $value->invoke($this, $args);
@@ -748,15 +823,39 @@ class Interpreter extends GolampiBaseVisitor
                 $index = $this->visit($child->expression());
 
                 if (!is_int($index)) {
-                    throw new \Exception("El índice debe ser entero.");
+
+                    \ErrorTable::add(
+                        "Semantico",
+                        "El indice debe ser entero.",
+                        $ctx->getStart()->getLine(),
+                        $ctx->getStart()->getCharPositionInLine()
+                    );
+
+                    return null;
                 }
 
                 if (!is_array($value)) {
-                    throw new \Exception("Intento de indexar algo que no es arreglo.");
+
+                    \ErrorTable::add(
+                        "Semantico",
+                        "Intento de indexar algo que no es arreglo.",
+                        $ctx->getStart()->getLine(),
+                        $ctx->getStart()->getCharPositionInLine()
+                    );
+
+                    return null;
                 }
 
                 if (!array_key_exists($index, $value)) {
-                    throw new \Exception("Índice fuera de rango.");
+
+                    \ErrorTable::add(
+                        "Semantico",
+                        "Indice fuera de rango.",
+                        $ctx->getStart()->getLine(),
+                        $ctx->getStart()->getCharPositionInLine()
+                    );
+
+                    return null;
                 }
 
                 $value = $value[$index];
@@ -861,7 +960,15 @@ class Interpreter extends GolampiBaseVisitor
         }
 
         if (count($values) != $size) {
-            throw new \Exception("El tamaño del arreglo no coincide con la inicialización.");
+
+            \ErrorTable::add(
+                "Semantico",
+                "El tamaño del arreglo no coincide con la inicializacion.",
+                $ctx->getStart()->getLine(),
+                $ctx->getStart()->getCharPositionInLine()
+            );
+
+            return null;
         }
 
         return $values;
@@ -978,7 +1085,15 @@ class Interpreter extends GolampiBaseVisitor
                     $name = $node->getText();
 
                     if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $name)) {
-                        throw new \Exception("El operador & solo puede aplicarse a variables.");
+
+                        \ErrorTable::add(
+                            "Semantico",
+                            "El operador & solo puede aplicarse a variables.",
+                            $ctx->getStart()->getLine(),
+                            $ctx->getStart()->getCharPositionInLine()
+                        );
+
+                        return null;
                     }
 
                     $env = $this->environment->getEnvironmentOf($name);
@@ -996,7 +1111,14 @@ class Interpreter extends GolampiBaseVisitor
                         return $value->get();
                     }
 
-                    throw new \Exception("No es un puntero válido.");
+                    t\ErrorTable::add(
+                        "Semantico",
+                        "No es un puntero valido.",
+                        $ctx->getStart()->getLine(),
+                        $ctx->getStart()->getCharPositionInLine()
+                    );
+
+                    return null;
             }
         }
 
@@ -1227,7 +1349,14 @@ class Interpreter extends GolampiBaseVisitor
                 return count($value);
             }
 
-            throw new \Exception("len() solo funciona con strings o arreglos.");
+            \ErrorTable::add(
+                "Semantico",
+                "len() solo funciona con strings o arreglos.",
+                $ctx->getStart()->getLine(),
+                $ctx->getStart()->getCharPositionInLine()
+            );
+
+            return null;
         }
 
         // ========================
@@ -1246,7 +1375,14 @@ class Interpreter extends GolampiBaseVisitor
             $exprs = $ctx->expression();
 
             if (count($exprs) != 3) {
-                throw new \Exception("substr() requiere 3 argumentos.");
+                \ErrorTable::add(
+                    "Semantico",
+                    "substr() requiere 3 argumentos.",
+                    $ctx->getStart()->getLine(),
+                    $ctx->getStart()->getCharPositionInLine()
+                );
+
+                return null;
             }
 
             $str = $this->visit($exprs[0]);
@@ -1254,15 +1390,36 @@ class Interpreter extends GolampiBaseVisitor
             $length = $this->visit($exprs[2]);
 
             if (!is_string($str)) {
-                throw new \Exception("substr() requiere un string.");
+                \ErrorTable::add(
+                    "Semantico",
+                    "substr() requiere un string.",
+                    $ctx->getStart()->getLine(),
+                    $ctx->getStart()->getCharPositionInLine()
+                );
+
+                return null;
             }
 
             if (!is_int($start) || !is_int($length)) {
-                throw new \Exception("substr() requiere índices enteros.");
+                \ErrorTable::add(
+                    "Semantico",
+                    "substr() requiere indices enteros.",
+                    $ctx->getStart()->getLine(),
+                    $ctx->getStart()->getCharPositionInLine()
+                );
+
+                return null;
             }
 
             if ($start < 0 || $length < 0 || $start + $length > strlen($str)) {
-                throw new \Exception("Índices inválidos en substr().");
+                \ErrorTable::add(
+                    "Semantico",
+                    "Indices invalidos en substr().",
+                    $ctx->getStart()->getLine(),
+                    $ctx->getStart()->getCharPositionInLine()
+                );
+
+                return null;
             }
 
             return substr($str, $start, $length);
@@ -1360,7 +1517,14 @@ class Interpreter extends GolampiBaseVisitor
             $size = $this->visit($arrayType->expression());
 
             if (!is_int($size)) {
-                throw new \Exception("El tamaño del arreglo debe ser entero.");
+                \ErrorTable::add(
+                    "Semantico",
+                    "El tamaño del arreglo debe ser entero.",
+                    $arrayType->getStart()->getLine(),
+                    $arrayType->getStart()->getCharPositionInLine()
+                );
+
+                return null;
             }
 
             $sizes[] = $size;
@@ -1425,6 +1589,13 @@ class Interpreter extends GolampiBaseVisitor
 
             return $a + $b;
         }
+        
+        \ErrorTable::add(
+            "Semantico",
+            "Tipos incompatibles en operacion +.",
+            0,
+            0
+        );
 
         return null;
     }
@@ -1446,6 +1617,13 @@ class Interpreter extends GolampiBaseVisitor
 
             return $a - $b;
         }
+
+        \ErrorTable::add(
+            "Semantico",
+            "Tipos incompatibles en operacion -.",
+            0,
+            0
+        );
 
         return null;
     }
@@ -1476,6 +1654,13 @@ class Interpreter extends GolampiBaseVisitor
             return $a * $b;
         }
 
+        \ErrorTable::add(
+            "Semantico",
+            "Tipos incompatibles en operacion *.",
+            0,
+            0
+        );
+
         return null;
     }
 
@@ -1488,7 +1673,17 @@ class Interpreter extends GolampiBaseVisitor
         if ($this->isRune($a)) $a = ord($a);
         if ($this->isRune($b)) $b = ord($b);
 
-        if ($b == 0) return null;
+        if ($b == 0) {
+
+            \ErrorTable::add(
+                "Semantico",
+                "Division por cero.",
+                0,
+                0
+            );
+
+            return null;
+        }
 
         if (is_numeric($a) && is_numeric($b)) {
 
@@ -1498,6 +1693,13 @@ class Interpreter extends GolampiBaseVisitor
 
             return intdiv($a, $b);
         }
+
+        \ErrorTable::add(
+            "Semantico",
+            "Tipos incompatibles en operacion /.",
+            0,
+            0
+        );
 
         return null;
     }
@@ -1514,6 +1716,13 @@ class Interpreter extends GolampiBaseVisitor
         if (is_int($a) && is_int($b)) {
             return $a % $b;
         }
+
+        \ErrorTable::add(
+            "Semantico",
+            "Tipos incompatibles en operacion %.",
+            0,
+            0
+        );
 
         return null;
     }
@@ -1566,6 +1775,13 @@ class Interpreter extends GolampiBaseVisitor
             return $a > $b;
         }
 
+        \ErrorTable::add(
+            "Semantico",
+            "Tipos incompatibles en comparacion >.",
+            0,
+            0
+        );
+
         return null;
     }
 
@@ -1585,6 +1801,13 @@ class Interpreter extends GolampiBaseVisitor
         if (is_numeric($a) && is_numeric($b)) {
             return $a >= $b;
         }
+
+        \ErrorTable::add(
+            "Semantico",
+            "Tipos incompatibles en comparacion >=.",
+            0,
+            0
+        );
 
         return null;
     }
@@ -1606,6 +1829,13 @@ class Interpreter extends GolampiBaseVisitor
             return $a < $b;
         }
 
+        \ErrorTable::add(
+            "Semantico",
+            "Tipos incompatibles en comparacion <.",
+            0,
+            0
+        );
+
         return null;
     }
 
@@ -1625,6 +1855,13 @@ class Interpreter extends GolampiBaseVisitor
         if (is_numeric($a) && is_numeric($b)) {
             return $a <= $b;
         }
+
+        \ErrorTable::add(
+            "Semantico",
+            "Tipos incompatibles en comparacion <=.",
+            0,
+            0
+        );
 
         return null;
     }
