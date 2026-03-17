@@ -135,6 +135,8 @@ function runCode() {
 
         let salida = data.output || "";
         window._ultimosErrores = data.errors || [];
+        window._ultimaSalida   = data.output  || "";
+        window._ultimosSimbolos = data.symbols || [];
 
         if (window._ultimosErrores.length > 0) {
             salida += "\n\n--- ERRORES ---\n";
@@ -193,7 +195,61 @@ function descargarReporte(tipo) {
         return;
     }
 
-    window.location.href = "../BACKEND/Codigo/Execute.php?reporte=" + tipo;
+    if (tipo === "resultado") {
+    const salida = window._ultimaSalida || "";
+    let html = `<html><head><meta charset="UTF-8"></head><body>`;
+    html += `<h2>Resultado de Ejecucion</h2>`;
+    html += `<pre style="background:#1e1e1e;color:white;padding:20px">${salida}</pre>`;
+    html += `</body></html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "resultado.html";
+    link.click();
+    return;
+}
+
+if (tipo === "simbolos") {
+    const symbols = window._ultimosSimbolos || [];
+    let html = `<html><head><meta charset="UTF-8"></head><body>`;
+    html += `<h2>Tabla de Simbolos</h2>`;
+    html += `<table border='1' style='border-collapse:collapse;width:100%'>`;
+    html += `<tr>
+        <th>Identificador</th>
+        <th>Tipo</th>
+        <th>Ambito</th>
+        <th>Valor</th>
+        <th>Linea</th>
+        <th>Columna</th>
+    </tr>`;
+
+    if (symbols.length === 0) {
+        html += `<tr><td colspan='6' style='text-align:center'>Sin simbolos</td></tr>`;
+    } else {
+        symbols.forEach(s => {
+            html += `<tr>
+                <td>${s.identifier}</td>
+                <td>${s.type}</td>
+                <td>${s.scope}</td>
+                <td>${s.value}</td>
+                <td>${s.line}</td>
+                <td>${s.column}</td>
+            </tr>`;
+        });
+    }
+
+    html += `</table></body></html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "simbolos.html";
+    link.click();
+    return;
+}
+
+window.location.href = "../BACKEND/Codigo/Execute.php?reporte=" + tipo;
 }
 </script>
 

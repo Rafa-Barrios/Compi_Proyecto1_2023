@@ -12,11 +12,14 @@ require_once __DIR__ . '/../Visitor/Interpreter.php';
 require_once __DIR__ . '/../Tablas/ErrorTable.php';
 require_once __DIR__ . '/../Tablas/ErrorListener.php';
 
+require_once __DIR__ . '/../Tablas/SymbolTable.php';
+
 use Antlr\Antlr4\Runtime\InputStream;
 use Antlr\Antlr4\Runtime\CommonTokenStream;
 use Visitor\Interpreter;
 
 ErrorTable::clear();
+SymbolTable::clear();
 
 //////////////////////////////
 // DESCARGAR REPORTES
@@ -105,6 +108,7 @@ try {
 }
 
 echo json_encode([
-    "output" => $visitor->output,
-    "errors" => ErrorTable::getErrors()
+    "output"  => $visitor->output,
+    "errors"  => ErrorTable::getErrors(),
+    "symbols" => SymbolTable::getSymbols()
 ]);

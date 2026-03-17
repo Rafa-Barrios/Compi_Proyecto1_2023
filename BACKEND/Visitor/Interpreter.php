@@ -10,12 +10,15 @@ require_once "Invocable.php";
 require_once "UserFunction.php";
 require_once "Pointer.php";
 require_once __DIR__ . "/../Tablas/ErrorTable.php";
+require_once __DIR__ . "/../Tablas/SymbolTable.php";
 
 class Interpreter extends GolampiBaseVisitor
 {
     public $output = "";
 
     private $environment;
+
+    private $currentScope = "global";
 
     public function __construct()
     {
@@ -126,10 +129,16 @@ class Interpreter extends GolampiBaseVisitor
                 }
             }
 
-            $this->environment->define(
-                $name, $value,
-                $id->getSymbol()->getLine(),
-                $id->getSymbol()->getCharPositionInLine()
+            $line   = $id->getSymbol()->getLine();
+            $column = $id->getSymbol()->getCharPositionInLine();
+            $this->environment->define($name, $value, $line, $column);
+            \SymbolTable::add(
+                $name,
+                $this->resolveType($value),
+                $this->currentScope,
+                $this->formatValue($value),
+                $line,
+                $column
             );
         }
 
@@ -162,7 +171,17 @@ class Interpreter extends GolampiBaseVisitor
             if ($env !== null) {
                 $env->assign($name, $value);
             } else {
-                $this->environment->define($name, $value);
+                $line   = $id->getSymbol()->getLine();
+                $column = $id->getSymbol()->getCharPositionInLine();
+                $this->environment->define($name, $value, $line, $column);
+                \SymbolTable::add(
+                    $name,
+                    $this->resolveType($value),
+                    $this->currentScope,
+                    $this->formatValue($value),
+                    $line,
+                    $column
+                );
                 $hasNew = true;
             }
         }
@@ -192,10 +211,16 @@ class Interpreter extends GolampiBaseVisitor
 
         $value = $this->visit($ctx->expression());
 
-        $this->environment->defineConst(
-            $name, $value,
-            $ctx->getStart()->getLine(),
-            $ctx->getStart()->getCharPositionInLine()
+        $line   = $ctx->getStart()->getLine();
+        $column = $ctx->getStart()->getCharPositionInLine();
+        $this->environment->defineConst($name, $value, $line, $column);
+        \SymbolTable::add(
+            $name,
+            $this->resolveType($value),
+            $this->currentScope,
+            $this->formatValue($value),
+            $line,
+            $column
         );
 
         return $value;
@@ -223,7 +248,14 @@ class Interpreter extends GolampiBaseVisitor
         }
 
         $function = new UserFunction($ctx, $this->environment);
-        $this->environment->define($name, $function);
+        $this->environment->define($name, $function, $line, $col);
+        \SymbolTable::add($name, "funcion", $this->currentScope, "—", $line, $col);
+
+        $previousScope      = $this->currentScope;
+        $this->currentScope = $name;
+        // el cuerpo de la función se ejecutará cuando sea invocada
+        $this->currentScope = $previousScope;
+
         return null;
     }
 
@@ -808,6 +840,13 @@ class Interpreter extends GolampiBaseVisitor
                 }
 
                 if (!($value instanceof Invocable)) {
+                    \ErrorTable::add(
+                        "Semantico",
+                        "Intento de llamar algo que no es funcion.",
+                        $ctx->getStart()->getLine(),
+                        $ctx->getStart()->getCharPositionInLine()
+                    );
+                    return null;
                 }
 
                 $args = [];
@@ -1637,7 +1676,7 @@ class Interpreter extends GolampiBaseVisitor
         if ($a === null || $b === null) return null;
 
         if (is_bool($a) || is_bool($b)) {
-            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion +.", $line, $column);
+            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion -.", $line, $column);
             return null;
         }
 
@@ -1663,7 +1702,7 @@ class Interpreter extends GolampiBaseVisitor
         if ($a === null || $b === null) return null;
 
         if (is_bool($a) || is_bool($b)) {
-            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion +.", $line, $column);
+            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion *.", $line, $column);
             return null;
         }
 
@@ -1697,7 +1736,7 @@ class Interpreter extends GolampiBaseVisitor
         if ($a === null || $b === null) return null;
 
         if (is_bool($a) || is_bool($b)) {
-            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion +.", $line, $column);
+            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion /.", $line, $column);
             return null;
         }
 
@@ -1735,7 +1774,7 @@ class Interpreter extends GolampiBaseVisitor
         if ($a === null || $b === null) return null;
 
         if (is_bool($a) || is_bool($b)) {
-            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion +.", $line, $column);
+            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion %.", $line, $column);
             return null;
         }
 
@@ -1787,7 +1826,7 @@ class Interpreter extends GolampiBaseVisitor
         if ($a === null || $b === null) return null;
 
         if (is_bool($a) || is_bool($b)) {
-            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion +.", $line, $column);
+            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion >.", $line, $column);
             return null;
         }
 
@@ -1812,7 +1851,7 @@ class Interpreter extends GolampiBaseVisitor
         if ($a === null || $b === null) return null;
 
         if (is_bool($a) || is_bool($b)) {
-            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion +.", $line, $column);
+            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion >=.", $line, $column);
             return null;
         }
 
@@ -1837,7 +1876,7 @@ class Interpreter extends GolampiBaseVisitor
         if ($a === null || $b === null) return null;
 
         if (is_bool($a) || is_bool($b)) {
-            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion +.", $line, $column);
+            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion <.", $line, $column);
             return null;
         }
 
@@ -1862,7 +1901,7 @@ class Interpreter extends GolampiBaseVisitor
         if ($a === null || $b === null) return null;
 
         if (is_bool($a) || is_bool($b)) {
-            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion +.", $line, $column);
+            \ErrorTable::add("Semantico", "Tipos incompatibles en operacion <=.", $line, $column);
             return null;
         }
 
@@ -1880,5 +1919,26 @@ class Interpreter extends GolampiBaseVisitor
         \ErrorTable::add("Semantico", "Tipos incompatibles en operacion <=.", $line, $column);
 
         return null;
+    }
+
+    private function resolveType($value) {
+        if ($value instanceof \Visitor\UserFunction) return "funcion";
+        if (is_int($value))   return "entero";
+        if (is_float($value)) return "decimal";
+        if (is_bool($value))  return "booleano";
+        if (is_array($value)) return "arreglo";
+        if (is_string($value)) {
+            if ($this->isRune($value)) return "caracter";
+            return "cadena";
+        }
+        return "desconocido";
+    }
+
+    private function formatValue($value) {
+        if ($value === null)  return "—";
+        if (is_bool($value))  return $value ? "true" : "false";
+        if (is_array($value)) return json_encode($value);
+        if ($value instanceof \Visitor\UserFunction) return "—";
+        return (string)$value;
     }
 }
