@@ -3,255 +3,595 @@
 <head>
 <meta charset="UTF-8">
 <title>Golampi IDE</title>
-
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <style>
-body {
-    font-family: monospace;
-    background: #1e1e1e;
-    color: white;
-    padding: 20px;
-    margin: 0;
-}
-
-h2 {
-    margin-bottom: 10px;
-}
-
-textarea {
-    width: 100%;
-    height: 300px;
-    background: #252526;
-    color: white;
-    border: none;
-    padding: 10px;
-    resize: none;
-}
-
-button {
-    padding: 10px 20px;
-    margin: 5px;
+  :root {
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --surface2:  #21262d;
+    --border:    #30363d;
+    --accent:    #58a6ff;
+    --green:     #3fb950;
+    --red:       #f85149;
+    --yellow:    #d29922;
+    --purple:    #bc8cff;
+    --text:      #e6edf3;
+    --muted:     #8b949e;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-ui:   'Syne', sans-serif;
+  }
+ 
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+  body {
+    font-family: var(--font-mono);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+ 
+  /* ── TITLEBAR ── */
+  .titlebar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+  }
+ 
+  .titlebar-left {
+    display: flex;
+    align-items: center;
+  }
+ 
+  .titlebar h1 {
+    font-family: var(--font-ui);
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+ 
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+  }
+ 
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+ 
+  /* ── TOOLBAR ── */
+  .toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 20px;
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+ 
+  .btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
     cursor: pointer;
-    background: #333;
-    color: white;
+    transition: all 0.15s;
+  }
+ 
+  .btn:hover {
+    background: var(--border);
+    border-color: var(--muted);
+  }
+ 
+  .btn-run {
+    background: var(--green);
+    border-color: var(--green);
+    color: #000;
+    font-weight: 700;
+  }
+ 
+  .btn-run:hover {
+    background: #56d364;
+    box-shadow: 0 0 12px rgba(63,185,80,0.4);
+  }
+ 
+  .btn-run.loading {
+    background: var(--yellow);
+    border-color: var(--yellow);
+    animation: blink 0.6s infinite;
+  }
+ 
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+ 
+  .btn-clear { color: var(--muted); }
+  .btn-clear:hover { color: var(--text); }
+ 
+  /* ── MAIN LAYOUT ── */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    grid-template-rows: 1fr 1fr;
+    gap: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+ 
+  /* ── PANELS ── */
+  .panel {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+ 
+  .panel-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+ 
+  .panel-header span.dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: inline-block;
+  }
+ 
+  /* ── EDITOR ── */
+  .editor-panel {
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+ 
+  textarea#code {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
     border: none;
-    border-radius: 4px;
-}
-
-button:hover {
-    background: #444;
-}
-
-#output {
-    margin-top: 20px;
-    background: black;
-    padding: 10px;
-    min-height: 100px;
+    outline: none;
+    padding: 16px 20px;
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.7;
+    resize: none;
+    width: 100%;
+    height: 100%;
+    tab-size: 4;
+  }
+ 
+  textarea#code::placeholder { color: var(--muted); }
+ 
+  /* ── CONSOLE ── */
+  .console-panel {
+    grid-column: 2;
+    grid-row: 1;
+  }
+ 
+  pre#output {
+    flex: 1;
+    background: #010409;
+    color: #7ee787;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 14px 16px;
+    overflow-y: auto;
     white-space: pre-wrap;
-}
-
-#reports {
-    margin-top: 20px;
-    background: #252526;
-    padding: 10px;
-    border-radius: 4px;
-}
+    word-break: break-word;
+  }
+ 
+  pre#output .err-line { color: var(--red); }
+  pre#output .ok-line  { color: var(--green); }
+ 
+  /* ── REPORTS PANEL ── */
+  .reports-panel {
+    grid-column: 2;
+    grid-row: 2;
+  }
+ 
+  .reports-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    overflow-y: auto;
+    flex: 1;
+  }
+ 
+  .report-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+  }
+ 
+  .report-btn:hover {
+    border-color: var(--accent);
+    background: rgba(88,166,255,0.07);
+  }
+ 
+  .report-btn .ricon {
+    font-size: 18px;
+    width: 28px;
+    text-align: center;
+  }
+ 
+  .report-btn .rlabel {
+    flex: 1;
+  }
+ 
+  .report-btn .rlabel strong {
+    display: block;
+    color: var(--text);
+    font-size: 12px;
+  }
+ 
+  .report-btn .rlabel small {
+    color: var(--muted);
+    font-size: 10px;
+  }
+ 
+  .report-btn.r-result  { --rc: var(--accent); }
+  .report-btn.r-errors  { --rc: var(--red); }
+  .report-btn.r-symbols { --rc: var(--purple); }
+ 
+  .report-btn:hover .ricon { filter: drop-shadow(0 0 4px var(--rc)); }
+ 
+  /* ── ERROR BADGE ── */
+  .error-count {
+    background: var(--red);
+    color: #fff;
+    border-radius: 20px;
+    font-size: 10px;
+    padding: 1px 7px;
+    font-weight: 700;
+    display: none;
+  }
+ 
+  /* ── STATUSBAR ── */
+  .statusbar {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 4px 16px;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+ 
+  .statusbar span { display: flex; align-items: center; gap: 5px; }
+ 
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 </style>
 </head>
-
 <body>
-
-<h2>Golampi Interpreter</h2>
-
-<!-- Barra de acciones -->
-<div id="actions">
-    <button onclick="nuevoArchivo()">Nuevo / Limpiar</button>
-    <button onclick="cargarArchivo()">Cargar archivo</button>
-    <button onclick="guardarCodigo()">Guardar código</button>
-    <button onclick="runCode()">Ejecutar / Analizar</button>
-    <button onclick="limpiarConsola()">Limpiar consola</button>
+ 
+<!-- TITLEBAR -->
+<div class="titlebar">
+  <h1>Golampi</h1>
+  <div style="position:absolute;right:20px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)">
+    <div class="status-dot"></div>
+    <span>Listo</span>
+  </div>
 </div>
-
-<!-- Editor de código -->
-<h3>Editor de Código:</h3>
-<textarea id="code"></textarea>
-
-<!-- Consola de salida -->
-<h3>Consola de Salida:</h3>
-<pre id="output"></pre>
-
-<!-- Panel de reportes -->
-<h3>Reportes:</h3>
-<div id="reports">
-    <button onclick="descargarReporte('resultado')">Descargar resultado</button>
-    <button onclick="descargarReporte('errores')">Descargar errores</button>
-    <button onclick="descargarReporte('simbolos')">Descargar tabla de símbolos</button>
+ 
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <button class="btn" onclick="nuevoArchivo()">🗋 Nuevo</button>
+  <button class="btn" onclick="cargarArchivo()">📂 Abrir</button>
+  <button class="btn" onclick="guardarCodigo()">💾 Guardar</button>
+  <button class="btn btn-run" id="btnRun" onclick="runCode()">▶ Ejecutar</button>
+  <button class="btn btn-clear" onclick="limpiarConsola()">🧹 Limpiar</button>
 </div>
-
+ 
+<!-- MAIN -->
+<div class="main">
+ 
+  <!-- EDITOR -->
+  <div class="panel editor-panel">
+    <div class="panel-header">
+      <span class="dot"></span>
+      📝 Editor de Código
+    </div>
+    <textarea id="code" placeholder="// Escribe tu código Golampi aquí...
+func main() {
+    fmt.Println(&quot;Hola, Golampi!&quot;)
+}"></textarea>
+  </div>
+ 
+  <!-- CONSOLE -->
+  <div class="panel console-panel">
+    <div class="panel-header">
+      <span class="dot" style="background:var(--green)"></span>
+      🖥️ Consola de Salida
+      <span id="errorBadge" class="error-count">0 errores</span>
+    </div>
+    <pre id="output">// La salida aparecerá aquí...</pre>
+  </div>
+ 
+  <!-- REPORTS -->
+  <div class="panel reports-panel">
+    <div class="panel-header">
+      <span class="dot" style="background:var(--purple)"></span>
+      📊 Reportes
+    </div>
+    <div class="reports-grid">
+      <button class="report-btn r-result" onclick="descargarReporte('resultado')">
+        <span class="ricon">📄</span>
+        <span class="rlabel">
+          <strong>Descargar Resultado</strong>
+          <small>Salida de la ejecución</small>
+        </span>
+        <span>↓</span>
+      </button>
+      <button class="report-btn r-errors" onclick="descargarReporte('errores')">
+        <span class="ricon">⚠️</span>
+        <span class="rlabel">
+          <strong>Descargar Errores</strong>
+          <small>Léxicos, sintácticos, semánticos</small>
+        </span>
+        <span>↓</span>
+      </button>
+      <button class="report-btn r-symbols" onclick="descargarReporte('simbolos')">
+        <span class="ricon">🔍</span>
+        <span class="rlabel">
+          <strong>Tabla de Símbolos</strong>
+          <small>Variables, funciones, constantes</small>
+        </span>
+        <span>↓</span>
+      </button>
+    </div>
+  </div>
+</div>
+ 
+<!-- STATUSBAR -->
+<div class="statusbar">
+  <span id="statusMsg">⚡ Golampi IDE listo</span>
+  <span style="margin-left:auto" id="statusErrors"></span>
+</div>
+ 
 <script>
-// Nuevo / Limpiar
+window._ultimosErrores  = [];
+window._ultimaSalida    = "";
+window._ultimosSimbolos = [];
+ 
 function nuevoArchivo() {
-    document.getElementById("code").value = "";
-    document.getElementById("output").textContent = "";
+  document.getElementById("code").value = "";
+  document.getElementById("output").textContent = "// La salida aparecerá aquí...";
+  window._ultimosErrores = []; window._ultimaSalida = ""; window._ultimosSimbolos = [];
+  setStatus("🗋 Archivo limpiado", false);
+  updateBadge(0);
 }
-
-// Cargar archivo
+ 
 function cargarArchivo() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".txt,.golampi";
-    input.onchange = e => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = () => {
-            document.getElementById("code").value = reader.result;
-        };
-        reader.readAsText(file);
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".txt,.golampi";
+  input.onchange = e => {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      document.getElementById("code").value = reader.result;
+      setStatus("📂 Archivo cargado: " + file.name, false);
     };
-    input.click();
+    reader.readAsText(file);
+  };
+  input.click();
 }
-
-// Guardar código
+ 
 function guardarCodigo() {
-    const code = document.getElementById("code").value;
-    const blob = new Blob([code], { type: "text/plain" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "codigo.golampi.txt";
-    link.click();
+  const code = document.getElementById("code").value;
+  const blob = new Blob([code], { type: "text/plain" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "codigo.golampi.txt";
+  link.click();
+  setStatus("💾 Código guardado", false);
 }
-
-// Ejecutar / Analizar
+ 
 function runCode() {
-    const code = document.getElementById("code").value;
-    document.getElementById("output").textContent = "Ejecutando...\n";
-
-    fetch("../BACKEND/Codigo/Execute.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "code=" + encodeURIComponent(code)
-    })
-    .then(res => res.json())
-    .then(data => {
-
-        let salida = data.output || "";
-        window._ultimosErrores = data.errors || [];
-        window._ultimaSalida   = data.output  || "";
-        window._ultimosSimbolos = data.symbols || [];
-
-        if (window._ultimosErrores.length > 0) {
-            salida += "\n\n--- ERRORES ---\n";
-            window._ultimosErrores.forEach(err => {
-                salida += `[${err.type}] Línea ${err.line}, Col ${err.column}: ${err.description}\n`;
-            });
-        }
-        document.getElementById("output").textContent = salida;
-    })
-    .catch(error => {
-        document.getElementById("output").textContent = "Error: " + error;
-    });
-}
-
-// Limpiar consola
-function limpiarConsola() {
-    document.getElementById("output").textContent = "";
-}
-
-// Descargar reportes
-function descargarReporte(tipo) {
-    if (tipo === "errores") {
-        const errors = window._ultimosErrores || [];
-        let html = `<html><head><meta charset="UTF-8"></head><body>`;
-        html += `<h2>Tabla de Errores</h2>`;
-        html += `<table border='1' style='border-collapse:collapse;width:100%'>`;
-        html += `<tr>
-            <th>#</th>
-            <th>Tipo</th>
-            <th>Descripcion</th>
-            <th>Linea</th>
-            <th>Columna</th>
-        </tr>`;
-
-        if (errors.length === 0) {
-            html += `<tr><td colspan='5' style='text-align:center'>Sin errores</td></tr>`;
-        } else {
-            errors.forEach(e => {
-                html += `<tr>
-                    <td>${e.id}</td>
-                    <td>${e.type}</td>
-                    <td>${e.description}</td>
-                    <td>${e.line}</td>
-                    <td>${e.column}</td>
-                </tr>`;
-            });
-        }
-
-        html += `</table></body></html>`;
-
-        const blob = new Blob([html], { type: "text/html" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "errores.html";
-        link.click();
-        return;
+  const code = document.getElementById("code").value;
+  const btn = document.getElementById("btnRun");
+  btn.classList.add("loading");
+  btn.textContent = "⏳ Ejecutando...";
+  document.getElementById("output").textContent = "⏳ Ejecutando...\n";
+  setStatus("⏳ Ejecutando código...", false);
+ 
+  fetch("../BACKEND/Codigo/Execute.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "code=" + encodeURIComponent(code)
+  })
+  .then(res => res.json())
+  .then(data => {
+    btn.classList.remove("loading");
+    btn.textContent = "▶ Ejecutar";
+ 
+    window._ultimosErrores  = data.errors  || [];
+    window._ultimaSalida    = data.output  || "";
+    window._ultimosSimbolos = data.symbols || [];
+ 
+    let salida = data.output || "";
+ 
+    if (window._ultimosErrores.length > 0) {
+      salida += "\n\n── ERRORES ──────────────────────────\n";
+      window._ultimosErrores.forEach(err => {
+        salida += `[${err.type}] Línea ${err.line}, Col ${err.column}: ${err.description}\n`;
+      });
     }
-
-    if (tipo === "resultado") {
-    const salida = window._ultimaSalida || "";
-    let html = `<html><head><meta charset="UTF-8"></head><body>`;
-    html += `<h2>Resultado de Ejecucion</h2>`;
-    html += `<pre style="background:#1e1e1e;color:white;padding:20px">${salida}</pre>`;
-    html += `</body></html>`;
-
-    const blob = new Blob([html], { type: "text/html" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "resultado.html";
-    link.click();
-    return;
-}
-
-if (tipo === "simbolos") {
-    const symbols = window._ultimosSimbolos || [];
-    let html = `<html><head><meta charset="UTF-8"></head><body>`;
-    html += `<h2>Tabla de Simbolos</h2>`;
-    html += `<table border='1' style='border-collapse:collapse;width:100%'>`;
-    html += `<tr>
-        <th>Identificador</th>
-        <th>Tipo</th>
-        <th>Ambito</th>
-        <th>Valor</th>
-        <th>Linea</th>
-        <th>Columna</th>
-    </tr>`;
-
-    if (symbols.length === 0) {
-        html += `<tr><td colspan='6' style='text-align:center'>Sin simbolos</td></tr>`;
+ 
+    document.getElementById("output").textContent = salida;
+    updateBadge(window._ultimosErrores.length);
+ 
+    if (window._ultimosErrores.length > 0) {
+      setStatus(`✅ Ejecución completa — ${window._ultimosErrores.length} error(es) encontrado(s)`, true);
     } else {
-        symbols.forEach(s => {
-            html += `<tr>
-                <td>${s.identifier}</td>
-                <td>${s.type}</td>
-                <td>${s.scope}</td>
-                <td>${s.value}</td>
-                <td>${s.line}</td>
-                <td>${s.column}</td>
-            </tr>`;
-        });
+      setStatus("✅ Ejecución completada sin errores", false);
     }
-
-    html += `</table></body></html>`;
-
-    const blob = new Blob([html], { type: "text/html" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "simbolos.html";
-    link.click();
-    return;
+  })
+  .catch(error => {
+    btn.classList.remove("loading");
+    btn.textContent = "▶ Ejecutar";
+    document.getElementById("output").textContent = "❌ Error de conexión: " + error;
+    setStatus("❌ Error al ejecutar", true);
+  });
 }
-
-window.location.href = "../BACKEND/Codigo/Execute.php?reporte=" + tipo;
+ 
+function limpiarConsola() {
+  document.getElementById("output").textContent = "// La salida aparecerá aquí...";
+  setStatus("🧹 Consola limpiada", false);
+  updateBadge(0);
+}
+ 
+function updateBadge(count) {
+  const badge = document.getElementById("errorBadge");
+  const statusErrors = document.getElementById("statusErrors");
+  if (count > 0) {
+    badge.style.display = "inline";
+    badge.textContent = count + (count === 1 ? " error" : " errores");
+    statusErrors.textContent = "⚠️ " + count + " error(es)";
+    statusErrors.style.color = "var(--red)";
+  } else {
+    badge.style.display = "none";
+    statusErrors.textContent = "✓ Sin errores";
+    statusErrors.style.color = "var(--green)";
+  }
+}
+ 
+function setStatus(msg, isError) {
+  const el = document.getElementById("statusMsg");
+  el.textContent = msg;
+  el.style.color = isError ? "var(--red)" : "var(--muted)";
+}
+ 
+function descargarReporte(tipo) {
+  if (tipo === "errores") {
+    const errors = window._ultimosErrores || [];
+    let html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      body{font-family:monospace;background:#0d1117;color:#e6edf3;padding:30px}
+      h2{color:#58a6ff;margin-bottom:20px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#161b22;color:#8b949e;padding:10px 14px;text-align:left;border-bottom:2px solid #30363d;font-size:11px;text-transform:uppercase}
+      td{padding:10px 14px;border-bottom:1px solid #21262d;font-size:13px}
+      tr:hover td{background:#161b22}
+      .lexico{color:#d29922} .sintactico{color:#f85149} .semantico{color:#bc8cff}
+      .empty{text-align:center;color:#8b949e;padding:30px}
+    </style></head><body>
+    <h2>⚠️ Tabla de Errores</h2>
+    <table><tr><th>#</th><th>Tipo</th><th>Descripción</th><th>Línea</th><th>Columna</th></tr>`;
+    if (errors.length === 0) {
+      html += `<tr><td colspan="5" class="empty">✓ Sin errores encontrados</td></tr>`;
+    } else {
+      errors.forEach(e => {
+        const cls = e.type.toLowerCase();
+        html += `<tr><td>${e.id}</td><td class="${cls}">${e.type}</td><td>${e.description}</td><td>${e.line}</td><td>${e.column}</td></tr>`;
+      });
+    }
+    html += `</table></body></html>`;
+    descargar(html, "errores.html"); return;
+  }
+ 
+  if (tipo === "resultado") {
+    const salida = window._ultimaSalida || "";
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      body{font-family:monospace;background:#0d1117;color:#e6edf3;padding:30px}
+      h2{color:#58a6ff;margin-bottom:20px}
+      pre{background:#010409;color:#7ee787;padding:20px;border-radius:8px;line-height:1.6;font-size:13px;border:1px solid #21262d}
+    </style></head><body>
+    <h2>📄 Resultado de Ejecución</h2>
+    <pre>${salida || "// Sin salida"}</pre>
+    </body></html>`;
+    descargar(html, "resultado.html"); return;
+  }
+ 
+  if (tipo === "simbolos") {
+    const symbols = window._ultimosSimbolos || [];
+    let html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      body{font-family:monospace;background:#0d1117;color:#e6edf3;padding:30px}
+      h2{color:#bc8cff;margin-bottom:20px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#161b22;color:#8b949e;padding:10px 14px;text-align:left;border-bottom:2px solid #30363d;font-size:11px;text-transform:uppercase}
+      td{padding:10px 14px;border-bottom:1px solid #21262d;font-size:13px}
+      tr:hover td{background:#161b22}
+      .empty{text-align:center;color:#8b949e;padding:30px}
+    </style></head><body>
+    <h2>🔍 Tabla de Símbolos</h2>
+    <table><tr><th>Identificador</th><th>Tipo</th><th>Ámbito</th><th>Valor</th><th>Línea</th><th>Columna</th></tr>`;
+    if (symbols.length === 0) {
+      html += `<tr><td colspan="6" class="empty">Sin símbolos registrados</td></tr>`;
+    } else {
+      symbols.forEach(s => {
+        html += `<tr><td>${s.identifier}</td><td>${s.type}</td><td>${s.scope}</td><td>${s.value}</td><td>${s.line}</td><td>${s.column}</td></tr>`;
+      });
+    }
+    html += `</table></body></html>`;
+    descargar(html, "simbolos.html"); return;
+  }
+ 
+  window.location.href = "../BACKEND/Codigo/Execute.php?reporte=" + tipo;
+}
+ 
+function descargar(html, filename) {
+  const blob = new Blob([html], { type: "text/html" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
 }
 </script>
-
 </body>
 </html>
